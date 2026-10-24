@@ -41,3 +41,12 @@ Layout (`src/hcm_ai/`): `config.py`, `main.py`, `dependencies.py`, `db.py`, `mod
 - "Today" is computed in `APP_TIMEZONE` (default Asia/Karachi) so "next Monday" is right on UTC hosts.
 - App is a factory: `uvicorn hcm_ai.main:create_app --factory`.
 - HR data is an in-memory mock behind `routers/ai.get_services`; replace with M3-M6 services.
+
+## Phase 8: Frontend + shared-number dashboard
+1.  `services/metrics.py` (attendance rate, late %, absenteeism %) used by tools and dashboard.
+2.  Service contract: optional `dept_id` on attendance summary / late-comers / payroll summary; `LeaveRow.approved_days_by_type`; percentages on `AttendanceSummary`.
+3.  `services/dashboard.py` + `routers/dashboard.py` (`/dashboard`, `/dashboard/me`, `/dashboard/departments`); `routers/auth.py` demo login; `config.py` (`demo_mode`, `AI_API_KEY` alias).
+4.  Security-headers middleware (CSP etc.) and static mount in `main.py`.
+5.  UI in `src/hcm_ai/web/` (vanilla ES modules, no build): shell + sign-in, dashboard + charts + Summarize, employee home + smart-leave form, chat panel.
+6.  Tests: pytest (metrics, dashboard == tools, role scoping, demo auth, headers, UI source lint) and `node --test` for the DOM-safe renderer.
+7.  Browser verification with real Groq at desktop and 375px, light/dark; README (done / not done), integration doc, CLAUDE.md.

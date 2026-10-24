@@ -49,3 +49,32 @@ Handled by the chat agent (policy text in `agent/prompts.py`). System prompt con
 *   Summarize: 3-5 bullets enforced in code (truncate >5, one retry if <3, then `fallback`).
 *   Smart-leave: prompt carries a 15-day weekday->date table; JSON mode + Pydantic validation; exactly one retry.
 *   Dev helpers: `scripts/mint_token.py`, `scripts/smoke_api.py`.
+
+## 6. Frontend, Dashboard and Demo Access (Phase 8)
+
+### F. Frontend (served at `/`)
+*   **Sign-in:** demo cards Admin / HR / Employee when `DEMO_MODE=true`; otherwise a paste-JWT box. Banner: demo data, M1/M3-M7 not connected.
+*   **Admin/HR dashboard:** filters (month, department); KPI cards (headcount, attendance rate, late %, absenteeism %, pending leave requests, payroll gross/net); charts (headcount by dept, absenteeism by dept, approved leave days by type) and a top-5 late-comers list; **Summarize** button posts the dashboard JSON currently shown to `POST /ai/summarize` and shows 3-5 bullets with the AI-generated label.
+*   **Employee home:** leave balance cards, own attendance this month, own payslip summary, **Smart leave** card: a sentence fills type/start/end/reason (highlighted, "AI-generated - please review"); user edits and presses Confirm (demo-only, not persisted). On `fallback` the plain empty form is shown.
+*   **Chat panel (all roles):** `POST /ai/chat`; docked on desktop, bottom sheet on mobile; role-specific suggested questions; loading, 429 countdown, fallback and error states.
+*   Responsive from 375px, light/dark, keyboard accessible.
+
+### G. Dashboard API and KPI formulas (shared with the AI tools)
+*   `GET /dashboard?month=YYYY-MM&dept_id=` (Admin, HR), `GET /dashboard/me` (Employee), `GET /dashboard/departments` (Admin, HR). JWT + server-side role checks; not AI, not rate limited.
+*   Formulas (one implementation in `services/metrics.py`, used by dashboard and tools):
+    *   Attendance rate % = (on_time + late + 0.5 x half_day) / (on_time + late + half_day + absent) x 100  (brief formula without missing_checkout/on_leave, which the demo data lacks)
+    *   Late % = late / (on_time + late) x 100
+    *   Absenteeism % = absent / (on_time + late + half_day + absent) x 100
+*   AI tools `get_attendance_summary`, `get_late_comers`, `get_payroll_summary` accept an optional `dept_id` so department-filtered answers equal the filtered dashboard.
+*   KPI JSON sent to Summarize may nest 4 levels (list of objects); size/string caps unchanged.
+
+### H. Demo access
+*   `POST /auth/demo-login {role}` -> `{token, user}` only when `DEMO_MODE=true`; fixed demo user per role; 8h token; 404 otherwise.
+*   `AI_API_KEY` is accepted as an alias of `GROQ_API_KEY` (name used by the brief).
+
+### Acceptance additions
+7.  HR: "What is this month's attendance rate?" equals the dashboard attendance-rate card for the same month.
+8.  HR: department-filtered question equals the dashboard with that department filter.
+9.  UI: Summarize on the dashboard returns 3-5 bullets using only the on-screen numbers.
+10. UI: Employee types the wedding sentence; the form shows `casual` and the correct dates, highlighted; nothing saved until Confirm.
+11. UI at 375px: no horizontal scroll; chat usable; all states reachable.

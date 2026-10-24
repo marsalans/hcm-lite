@@ -34,3 +34,19 @@ Workflow: Claude Plan Mode per phase -> implement -> present -> wait for approva
 - [x] **T17:** `docs/integration.md` contract + reusable service contract tests for the real M3-M6 services.
 - [x] **T18:** Dependency audit (`pip-audit`): no known vulnerabilities; no upgrades needed.
 - [x] **T19:** Full verification (ruff, mypy, pytest, coverage, SpecKit prerequisites check, live smoke) and commit.
+
+## Phase 8: Frontend (required) + dashboard
+- [x] **T20:** Docs: constitution (frontend rules), spec (F/G/H), plan, tasks; README, integration doc, CLAUDE.md.
+- [x] **T21:** `services/metrics.py` with the shared KPI formulas.
+- [x] **T22:** Service contract + mock: `dept_id` filters, percentages, leave days by type.
+- [x] **T23:** AI tools: optional `dept_id`, rates in results (judge question: attendance rate).
+- [x] **T24:** `services/dashboard.py` and `/dashboard*` endpoints (role-scoped).
+- [x] **T25:** Demo login (`DEMO_MODE`), `AI_API_KEY` alias.
+- [x] **T26:** Security headers/CSP middleware; static UI mount.
+- [x] **T27:** UI shell, sign-in, API client, state handling.
+- [x] **T28:** Dashboard UI: filters, KPI cards, charts, Summarize.
+- [x] **T29:** Employee home + smart-leave form (pre-fill, review, confirm, fallback).
+- [x] **T30:** Chat panel (suggestions, loading/429/fallback/error states).
+- [x] **T31:** Tests: pytest + `node --test`; UI source lint.
+- [x] **T32:** Browser verification (desktop, 375px, dark) with real Groq.
+- [x] **T33:** Final checks, README done/not-done, commits.

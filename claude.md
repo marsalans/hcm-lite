@@ -18,3 +18,10 @@
 *   This project's constitution and this file are hand-written and authoritative: never let a SpecKit command overwrite `.specify/memory/constitution.md` with its template.
 *   Prompt History Records (`/sp.phr`) and ADRs (`/sp.adr`) are on request only, to keep token use low.
 *   On Windows run `specifyplus` with `PYTHONUTF8=1` (its banner crashes on the default cp1252 console).
+
+## Frontend rules (Phase 8)
+
+*   The UI is mandatory and lives in `src/hcm_ai/web/` (vanilla ES modules, no build step, no CDN), served by FastAPI at `/`.
+*   Never use `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`eval`/inline scripts or styles; build DOM with `js/dom.js` and show AI text as text nodes (`js/render.js`). `tests/test_web.py` enforces this.
+*   Dashboard numbers and AI tool results must come from the same service calls and `services/metrics.py`; `tests/test_dashboard.py` enforces it.
+*   Verify UI changes in the browser pane (desktop, 375px, light/dark) and with `node --test "web_tests/*.test.mjs"`.

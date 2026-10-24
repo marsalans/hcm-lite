@@ -1,109 +1,137 @@
 # HCM Lite - M8 AI Assistant
 
-Role-aware AI assistant for HCM Lite: chat with tool calling, dashboard summaries and smart leave
-pre-fill. Built with FastAPI, Pydantic v2 and the **OpenAI Agents SDK** pointed at **Groq**
-(Gemini as optional fallback). Requirements: `ai_assistant_task_breakdown.md`; rules:
+The AI Assistant module of HCM Lite: a **chat panel**, a **dashboard with a Summarize button** and a
+**smart leave form**, backed by a FastAPI service that uses the **OpenAI Agents SDK** against **Groq**
+(Gemini as optional fallback). Requirements: `ai_assistant_task_breakdown.md`; project rules:
 `.specify/memory/constitution.md`.
 
-## How it works
+> Scope: this repo is **M8 only**. Login, employees, attendance, leave and payroll modules (M1-M7) are
+> not built here; the assistant and dashboard run on built-in **sample data** behind a service seam
+> (see "Done / not done").
 
-```
-Browser --JWT--> FastAPI /ai/*  -> auth -> role check -> rate limit (20/user/hour)
-                      |
-                      v
-              Agents SDK agent (Groq gpt-oss-120b; 15s hard deadline; max 5 turns)
-                      | tool calls (identity comes from the JWT, never from the model)
-                      v
-              services/ai_tools.py  ->  service layer (enforces RBAC, raises 403)
-                      |
-                      v
-              HR services (in-memory mock today; swap for M3-M6 in routers/ai.py:get_services)
-```
-
-The LLM never touches the database and never writes business data. Only `ai_logs` is written.
-
-| Endpoint | Roles | What it does |
-|---|---|---|
-| `POST /ai/chat` | Admin, HR, Employee | Tool-calling Q&A + policy answers |
-| `POST /ai/summarize` | Admin, HR | 3-5 bullets from supplied KPI JSON |
-| `POST /ai/smart-leave` | Employee | Natural language -> `{type,start,end,reason}` (validated, 1 retry, then `fallback`) |
-| `GET /health` | none | Liveness |
-
-Every AI response has `ai_generated: true` and `label: "AI-generated"`. On timeout or provider
-failure you get HTTP 200 with `success: false, fallback: true`.
-
-## Setup
+## Run it in 3 minutes
 
 ```bash
 uv sync
-cp .env.example .env     # then fill GROQ_API_KEY and JWT_SECRET (>= 32 chars)
-uv run uvicorn hcm_ai.main:create_app --factory --reload
+cp .env.example .env       # then fill in the values below
+uv run uvicorn hcm_ai.main:create_app --factory
 ```
 
-Keys live only in `.env` (git-ignored). `GEMINI_API_KEY` (fallback model) and
-`OPENAI_TRACING_KEY` (trace export) are optional.
+Required in `.env`:
 
-### Try it
+| Variable | What |
+|---|---|
+| `AI_API_KEY` (or `GROQ_API_KEY`) | Your Groq API key. **Backend only**: the browser never sees or calls the AI provider. |
+| `JWT_SECRET` | Random string, at least 32 characters. Generate: `uv run python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `DEMO_MODE=true` | Enables the demo sign-in cards (stand-in for M1 login). **Never enable in production.** |
 
-Production tokens come from M1 (Auth). For local testing mint one (dev only):
+Open <http://localhost:8000>, pick **Admin**, **HR** or **Employee**, and try:
 
-```bash
-TOKEN=$(uv run python scripts/mint_token.py employee)
-curl -s localhost:8000/ai/chat -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"message":"How many sick leaves do I have left this year?"}'
+| As | Try | You should see |
+|---|---|---|
+| HR | Ask "How many active employees are in Engineering?" | 3, same as the dashboard's Engineering filter |
+| HR | Ask "Who came late most often this month?" / "What is this month's attendance rate?" | Usman Ali, 6 days / the attendance-rate card value |
+| HR / Admin | Press **Summarize** on the dashboard | 3-5 bullets using only the numbers on screen |
+| Employee | Ask "How many sick leaves do I have left this year?" | 6 (own balance) |
+| Employee | Ask "What is Sara Malik's salary?" | A polite refusal |
+| Employee | Type "I need next Monday and Tuesday off for my sister's wedding", press **Fill form with AI** | Casual leave with the right dates, highlighted for review |
+
+First admin: there is no first-run setup in M8; demo mode signs you in as fixed demo users. With
+`DEMO_MODE=false`, the UI accepts a JWT from your own login service (see `docs/integration.md`).
+
+## What you get
+
+```
+Browser (vanilla JS, no build)  --JWT-->  FastAPI  -> auth -> role check -> rate limit (20/user/hour)
+  chat panel / dashboard /                   |
+  smart-leave form                           v
+                                  Agents SDK agent (Groq gpt-oss-120b; 15 s deadline; max 5 turns)
+                                             | tool calls (identity from the JWT, never from the model)
+                                             v
+                                  services/ai_tools.py -> service layer (enforces RBAC) -> sample data
+  Dashboard JSON  <---- same service calls + same formulas (services/metrics.py) ----> AI tool results
 ```
 
-Tokens must carry `sub` (user id), `role` (`Admin|HR|Employee`), `exp`, and `employee_id` for
-Employees (HS256).
+The model never touches a database and never saves anything. Dashboard numbers and AI answers come
+from the **same service calls and formulas**, so they match by construction (tests assert it).
 
-Live check of all endpoints against real Groq (needs `.env`): `uv run python scripts/smoke_api.py`.
+| Endpoint | Roles | What it does |
+|---|---|---|
+| `GET /` | - | The web UI |
+| `POST /ai/chat` | Admin, HR, Employee | Tool-calling Q&A + policy answers |
+| `POST /ai/summarize` | Admin, HR | 3-5 bullets from the dashboard KPI JSON |
+| `POST /ai/smart-leave` | Employee | Sentence -> `{type,start,end,reason}` (validated, 1 retry, then `fallback`) |
+| `GET /dashboard`, `/dashboard/departments` | Admin, HR | KPIs (filters: `month`, `dept_id`) |
+| `GET /dashboard/me` | Employee | Own leave balance, attendance, payslip |
+| `POST /auth/demo-login` | - | Demo sign-in; **404 unless `DEMO_MODE=true`** |
+| `GET /health` | - | Liveness |
 
-## Models
+Every AI response carries `ai_generated: true` and the label "AI-generated"; on timeout or provider
+failure you get HTTP 200 with `success: false, fallback: true`.
 
-Defaults are `openai/gpt-oss-120b` (chat, smart-leave) and `openai/gpt-oss-20b` (summaries), with
-`REASONING_EFFORT=low`. Set `CHAT_MODEL`/`FAST_MODEL` in `.env` to change them; if calls fail with
-404, list what your key can use with the Groq `/models` endpoint.
+KPI formulas (one implementation, `services/metrics.py`): attendance rate = (on-time + late +
+0.5 x half-day) / all records; late % = late / (on-time + late); absenteeism = absent / all records.
 
-## Tracing
+## Models and tracing
 
-Agents SDK tracing is on. Traces are exported to the OpenAI dashboard only when
-`OPENAI_TRACING_KEY` is set (an OpenAI platform key; your Groq key is never used for this).
-Without it, export is off. Prompts and tool data are excluded from traces
-(`trace_include_sensitive_data=False`). `ai_logs` (user, role, endpoint, redacted prompt, response,
-tools used, tokens, latency, status) is always written.
+Defaults: `openai/gpt-oss-120b` (chat, smart leave) and `openai/gpt-oss-20b` (summaries) with
+`REASONING_EFFORT=low`; change `CHAT_MODEL` / `FAST_MODEL` in `.env`. If calls fail with 404, list
+the models your key can use. `GEMINI_API_KEY` (optional) adds a fallback model.
+
+Agents SDK tracing is on. Traces go to the OpenAI dashboard only if `OPENAI_TRACING_KEY` is set
+(an OpenAI platform key; the Groq key is never used for this); prompts/tool data are excluded.
+`ai_logs` (user, role, endpoint, redacted prompt, response, tools, tokens, latency, status) is
+always written.
 
 ## Security controls
 
 | Control | Where |
 |---|---|
-| Keys only in env, `SecretStr`, never logged | `config.py` |
+| Keys only in env, `SecretStr`, never logged or echoed in errors | `config.py` |
 | JWT: HS256 pinned, `exp`+`sub` required, generic 401 | `dependencies.py` |
 | RBAC inside services; tools get identity from run context only | `services/`, `ai_tools.py` |
 | Rate limit 20/user/hour (429 + `Retry-After`) | `ratelimit.py` |
-| Input caps (chat 1000, leave 500, KPI 8KB, body 32KB), `extra=forbid` | `schemas.py`, `main.py` |
+| Input caps (chat 1000, leave 500, KPI 8 KB, body 32 KB), `extra=forbid` | `schemas.py`, `main.py` |
 | Prompt-injection stance: user text, KPI data, tool output are data | `agent/prompts.py` |
-| 15s deadline, bounded turns, friendly fallback, no provider text leaked | `agent/orchestrator.py` |
-| Prompt/response redaction + truncation in `ai_logs` | `agent/ai_logger.py` |
-| CORS closed unless `CORS_ORIGINS` set; API docs off unless `ENABLE_DOCS=true` | `main.py` |
-
-## Spec-driven workflow (SpecKit Plus)
-
-Planning documents live in `specs/001-ai-assistant/` (`spec.md`, `plan.md`, `tasks.md`); the
-project rules are in `.specify/memory/constitution.md`. Slash commands (`/sp.plan`, `/sp.tasks`,
-`/sp.implement`, `/sp.analyze`, ...) are in `.claude/commands/`. On Windows run `specifyplus` with
-`PYTHONUTF8=1`. Integration contract for the other modules: `docs/integration.md`.
+| 15 s deadline, bounded turns, friendly fallback, no provider text leaked | `agent/orchestrator.py` |
+| Redacted + truncated `ai_logs` | `agent/ai_logger.py` |
+| UI: strict CSP, no `innerHTML`/inline script, AI text rendered as text nodes, tests enforce it | `main.py`, `web/`, `tests/test_web.py` |
+| CORS closed unless `CORS_ORIGINS`; API docs off unless `ENABLE_DOCS=true` | `main.py` |
 
 ## Development
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run mypy
-uv run pytest --cov=hcm_ai          # offline: a scripted fake LLM server, no network
+uv run pytest --cov=hcm_ai     # offline: scripted fake LLM; also runs the Node UI tests
+node --test "web_tests/*.test.mjs"
+uv run python scripts/smoke_api.py   # live check against real Groq (needs .env)
 ```
+
+Spec-driven workflow (SpecKit Plus): `specs/001-ai-assistant/` (`spec.md`, `plan.md`, `tasks.md`),
+slash commands in `.claude/commands/`. On Windows run `specifyplus` with `PYTHONUTF8=1`.
+Integration contract for other modules: `docs/integration.md`.
+
+## Hosting
+
+One process serves API and UI: `uvicorn hcm_ai.main:create_app --factory --host 0.0.0.0 --port $PORT`
+on any free host. Set `AI_API_KEY`, `JWT_SECRET` and (for a demo link) `DEMO_MODE=true` in the host's
+environment settings, never in the repo. The SQLite `ai_logs` file is ephemeral on most free hosts.
+
+## Done / not done
+
+**Done (M8):** chat with 7 tools and role scoping; dashboard summary; smart leave with validation,
+one retry and fallback; policy Q&A; 15 s timeout + fallback; 20/hour rate limit; `ai_logs`;
+AI-generated labels; responsive UI (375 px+, light/dark, loading/empty/error/429 states);
+Admin/HR dashboard and Employee home fed by the same services as the AI; tracing.
+
+**Not done (other modules / out of scope):** real login and first-run setup (M1/M2); employee,
+attendance, leave and payroll data entry (M3-M6) - the leave form's **Confirm is demo-only and not
+saved**; check-in/out, CSV, payslip PDF, audit log and announcements (M9); mobile/camera app.
+All data shown is built-in sample data.
 
 ## Known limits
 
-- HR data is mock until M3-M6 are wired in (`routers/ai.get_services`).
-- Summary numbers are grounded by prompt only; there is no numeric cross-check.
+- Summary numbers are grounded by prompt only; there is no numeric cross-check of the bullets.
 - Rate limiting is in memory (single process); use Redis for multiple workers.
 - Body-size cap checks the declared `Content-Length`; also cap at your reverse proxy.
-- LLM answer quality (e.g. department name -> id, refusals) is verified only by live runs.
+- Answer quality (department names, refusals) depends on the model; verified live with `scripts/smoke_api.py`.
