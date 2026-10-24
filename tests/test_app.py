@@ -16,7 +16,7 @@ from hcm_ai.agent.client import build_models
 from hcm_ai.config import Settings, get_settings
 from hcm_ai.main import create_app
 from hcm_ai.ratelimit import SlidingWindowLimiter, get_rate_limiter
-from hcm_ai.routers import ai
+from hcm_ai.routers import ai, deps
 from tests.conftest import JWT_SECRET, make_token
 from tests.mock_llm import MockLLM, completion
 
@@ -137,10 +137,10 @@ class _FrozenDatetime(datetime):
 def test_today_uses_configured_timezone(
     monkeypatch: pytest.MonkeyPatch, tz: str, expected: str
 ) -> None:
-    monkeypatch.setattr(ai, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(deps, "datetime", _FrozenDatetime)
     monkeypatch.setenv("APP_TIMEZONE", tz)
     get_settings.cache_clear()
-    assert ai.get_today(get_settings()).isoformat() == expected
+    assert deps.get_today(get_settings()).isoformat() == expected
     assert ZoneInfo(tz)
 
 

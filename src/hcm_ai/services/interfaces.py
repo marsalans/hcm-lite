@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from hcm_ai.schemas import UserContext
+from hcm_ai.services import metrics
 
 
 class _Result(BaseModel):
@@ -36,6 +37,21 @@ class AttendanceSummary(_Result):
     late: int
     half_day: int
     absent: int
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def attendance_rate_pct(self) -> float | None:
+        return metrics.attendance_rate_pct(self.on_time, self.late, self.half_day, self.absent)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def late_pct(self) -> float | None:
+        return metrics.late_pct(self.on_time, self.late)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def absenteeism_pct(self) -> float | None:
+        return metrics.absenteeism_pct(self.on_time, self.late, self.half_day, self.absent)
 
 
 class LateComer(_Result):
@@ -63,6 +79,7 @@ class LeaveRow(_Result):
     pending: int
     approved: int
     approved_days: int
+    approved_days_by_type: dict[str, int] = {}
 
 
 class LeaveSummary(_Result):
@@ -94,8 +111,12 @@ class EmployeeService(Protocol):
 
 
 class AttendanceService(Protocol):
-    def summary(self, user: UserContext, start: date, end: date) -> AttendanceSummary: ...
-    def late_comers(self, user: UserContext, month: str) -> list[LateComer]: ...
+    def summary(
+        self, user: UserContext, start: date, end: date, dept_id: int | None = None
+    ) -> AttendanceSummary: ...
+    def late_comers(
+        self, user: UserContext, month: str, dept_id: int | None = None
+    ) -> list[LateComer]: ...
 
 
 class LeaveService(Protocol):
@@ -105,7 +126,11 @@ class LeaveService(Protocol):
 
 class PayrollService(Protocol):
     def summary(
-        self, user: UserContext, month: str, employee_id: int | None = None
+        self,
+        user: UserContext,
+        month: str,
+        employee_id: int | None = None,
+        dept_id: int | None = None,
     ) -> PayrollSummary: ...
 
 

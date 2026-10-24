@@ -98,8 +98,10 @@ class _Core:
             e.id: [(d, _status(e, i)) for i, d in enumerate(workdays, start=1)] for e in EMPLOYEES
         }
 
-    def active_ids(self) -> list[int]:
-        return [e.id for e in EMPLOYEES if e.active]
+    def active_ids(self, dept_id: int | None = None) -> list[int]:
+        if dept_id is not None and dept_id not in DEPARTMENTS:
+            raise NotFound("unknown department")
+        return [e.id for e in EMPLOYEES if e.active and dept_id in (None, e.dept_id)]
 
     def counts(self, emp_ids: list[int], start: date, end: date) -> dict[str, int]:
         counts = {"on_time": 0, "late": 0, "half_day": 0, "absent": 0}
@@ -161,16 +163,23 @@ class MockAttendance:
     def __init__(self, core: _Core) -> None:
         self._c = core
 
-    def summary(self, user: UserContext, start: date, end: date) -> AttendanceSummary:
+    def summary(
+        self, user: UserContext, start: date, end: date, dept_id: int | None = None
+    ) -> AttendanceSummary:
         if user.role in _STAFF:
-            scope, ids = "org", self._c.active_ids()
+            scope = "org" if dept_id is None else "department"
+            ids = self._c.active_ids(dept_id)
         else:
+            if dept_id is not None:
+                raise PermissionDenied
             scope, ids = "self", [self._c.own_id(user)]
         return AttendanceSummary(
             scope=scope, start=start, end=end, **self._c.counts(ids, start, end)
         )
 
-    def late_comers(self, user: UserContext, month: str) -> list[LateComer]:
+    def late_comers(
+        self, user: UserContext, month: str, dept_id: int | None = None
+    ) -> list[LateComer]:
         _require_staff(user)
         start, end = _month_bounds(month)
         ranked = [
@@ -179,7 +188,7 @@ class MockAttendance:
                 name=self._c.by_id[eid].name,
                 late_days=self._c.counts([eid], start, end)["late"],
             )
-            for eid in self._c.active_ids()
+            for eid in self._c.active_ids(dept_id)
         ]
         return sorted((r for r in ranked if r.late_days > 0), key=lambda r: (-r.late_days, r.name))
 
@@ -222,6 +231,9 @@ class MockLeave:
                     pending=sum(1 for x in mine if x[2] == "pending"),
                     approved=len(approved),
                     approved_days=sum(x[3] for x in approved),
+                    approved_days_by_type={
+                        kind: sum(x[3] for x in approved if x[1] == kind) for kind in _QUOTAS
+                    },
                 )
             )
         return LeaveSummary(year=self._c.today.year, rows=rows)
@@ -232,18 +244,23 @@ class MockPayroll:
         self._c = core
 
     def summary(
-        self, user: UserContext, month: str, employee_id: int | None = None
+        self,
+        user: UserContext,
+        month: str,
+        employee_id: int | None = None,
+        dept_id: int | None = None,
     ) -> PayrollSummary:
         if user.role in _STAFF:
-            if employee_id is None:
-                scope, ids = "org", self._c.active_ids()
-            else:
+            if employee_id is not None:
                 if employee_id not in self._c.by_id:
                     raise NotFound("unknown employee")
                 scope, ids = "employee", [employee_id]
+            else:
+                scope = "org" if dept_id is None else "department"
+                ids = self._c.active_ids(dept_id)
         else:
             own = self._c.own_id(user)
-            if employee_id not in (None, own):
+            if employee_id not in (None, own) or dept_id is not None:
                 raise PermissionDenied
             scope, ids = "self", [own]
 

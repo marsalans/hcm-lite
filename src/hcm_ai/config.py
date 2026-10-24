@@ -1,7 +1,7 @@
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _MIN_JWT_SECRET_LEN = 32
@@ -9,9 +9,12 @@ _MIN_JWT_SECRET_LEN = 32
 
 class Settings(BaseSettings):
     # hide_input_in_errors: a rejected secret must never be echoed in validation errors/logs.
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", hide_input_in_errors=True, populate_by_name=True
+    )
 
-    groq_api_key: SecretStr
+    # AI_API_KEY is the name used in the hackathon brief; GROQ_API_KEY also works.
+    groq_api_key: SecretStr = Field(validation_alias=AliasChoices("GROQ_API_KEY", "AI_API_KEY"))
     gemini_api_key: SecretStr | None = None
     openai_tracing_key: SecretStr | None = None
     jwt_secret: SecretStr
@@ -30,6 +33,7 @@ class Settings(BaseSettings):
     cors_origins: str = ""  # comma-separated; empty = no cross-origin access
     app_timezone: str = "Asia/Karachi"  # "today" for leave dates is computed in this zone
     enable_docs: bool = False
+    demo_mode: bool = False  # exposes POST /auth/demo-login; never enable in production
     max_body_bytes: int = 32_768
 
     groq_base_url: str = "https://api.groq.com/openai/v1"

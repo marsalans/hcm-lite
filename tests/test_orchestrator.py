@@ -139,3 +139,9 @@ def test_chat_prompt_has_refusal_rule_and_stays_within_token_budget() -> None:
 
     assert "can't share it" in CHAT_INSTRUCTIONS
     assert len(CHAT_INSTRUCTIONS) / 4 < 300  # ~tokens; constitution target is ~250
+
+
+def test_summary_prompt_forbids_assuming_a_currency() -> None:
+    from hcm_ai.agent.prompts import SUMMARY_INSTRUCTIONS
+
+    assert "never assume another" in SUMMARY_INSTRUCTIONS

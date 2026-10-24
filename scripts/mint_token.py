@@ -5,12 +5,10 @@ Usage: uv run python scripts/mint_token.py hr
 """
 
 import argparse
-import time
-
-import jwt
 
 from hcm_ai.config import get_settings
-from hcm_ai.schemas import Role
+from hcm_ai.schemas import Role, UserContext
+from hcm_ai.tokens import create_token
 
 _DEFAULTS = {
     Role.ADMIN: (100, None),
@@ -21,14 +19,8 @@ _MAX_MINUTES = 1440
 
 
 def mint(role: Role, user_id: int, employee_id: int | None, minutes: int) -> str:
-    claims: dict[str, object] = {
-        "sub": str(user_id),
-        "role": role.value,
-        "exp": int(time.time()) + minutes * 60,
-    }
-    if employee_id is not None:
-        claims["employee_id"] = employee_id
-    return jwt.encode(claims, get_settings().jwt_secret.get_secret_value(), algorithm="HS256")
+    user = UserContext(user_id=user_id, role=role, employee_id=employee_id)
+    return create_token(get_settings(), user, minutes)
 
 
 def main() -> None:

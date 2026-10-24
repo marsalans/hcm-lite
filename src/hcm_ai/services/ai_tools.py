@@ -90,13 +90,15 @@ def tool_headcount(deps: AgentDeps, dept_id: int | None) -> Any:
     return _model(deps.services.employees.headcount(deps.user, _check_dept(dept_id)))
 
 
-def tool_attendance_summary(deps: AgentDeps, date_range: str) -> Any:
+def tool_attendance_summary(deps: AgentDeps, date_range: str, dept_id: int | None = None) -> Any:
     start, end = parse_date_range(date_range, deps.today)
-    return _model(deps.services.attendance.summary(deps.user, start, end))
+    return _model(deps.services.attendance.summary(deps.user, start, end, _check_dept(dept_id)))
 
 
-def tool_late_comers(deps: AgentDeps, month: str) -> Any:
-    rows = deps.services.attendance.late_comers(deps.user, _check_month(month))
+def tool_late_comers(deps: AgentDeps, month: str, dept_id: int | None = None) -> Any:
+    rows = deps.services.attendance.late_comers(
+        deps.user, _check_month(month), _check_dept(dept_id)
+    )
     return [_model(r) for r in rows[:_LATE_TOP_N]]
 
 
@@ -108,8 +110,10 @@ def tool_my_leave_balance(deps: AgentDeps) -> Any:
     return _model(deps.services.leave.my_balance(deps.user))
 
 
-def tool_payroll_summary(deps: AgentDeps, month: str) -> Any:
-    return _model(deps.services.payroll.summary(deps.user, _check_month(month)))
+def tool_payroll_summary(deps: AgentDeps, month: str, dept_id: int | None = None) -> Any:
+    return _model(
+        deps.services.payroll.summary(deps.user, _check_month(month), dept_id=_check_dept(dept_id))
+    )
 
 
 def tool_search_employees(deps: AgentDeps, query: str) -> Any:
@@ -129,15 +133,20 @@ def get_headcount(ctx: RunContextWrapper[AgentDeps], dept_id: int | None = None)
 
 
 @function_tool
-def get_attendance_summary(ctx: RunContextWrapper[AgentDeps], date_range: str) -> str:
-    """Attendance counts. date_range: today|this_week|this_month|last_month|YYYY-MM|A..B."""
-    return run_tool(lambda: tool_attendance_summary(ctx.context, date_range))
+def get_attendance_summary(
+    ctx: RunContextWrapper[AgentDeps], date_range: str, dept_id: int | None = None
+) -> str:
+    """Attendance counts and rates. date_range: today|this_week|this_month|last_month|YYYY-MM|A..B.
+    Optional dept_id (staff only)."""
+    return run_tool(lambda: tool_attendance_summary(ctx.context, date_range, dept_id))
 
 
 @function_tool
-def get_late_comers(ctx: RunContextWrapper[AgentDeps], month: str) -> str:
-    """Top late employees for month (YYYY-MM)."""
-    return run_tool(lambda: tool_late_comers(ctx.context, month))
+def get_late_comers(
+    ctx: RunContextWrapper[AgentDeps], month: str, dept_id: int | None = None
+) -> str:
+    """Top late employees for month (YYYY-MM). Optional dept_id."""
+    return run_tool(lambda: tool_late_comers(ctx.context, month, dept_id))
 
 
 @function_tool
@@ -154,9 +163,11 @@ def get_my_leave_balance(ctx: RunContextWrapper[AgentDeps]) -> str:
 
 
 @function_tool
-def get_payroll_summary(ctx: RunContextWrapper[AgentDeps], month: str) -> str:
-    """Payroll totals for month (YYYY-MM). Employees only get their own."""
-    return run_tool(lambda: tool_payroll_summary(ctx.context, month))
+def get_payroll_summary(
+    ctx: RunContextWrapper[AgentDeps], month: str, dept_id: int | None = None
+) -> str:
+    """Payroll totals for month (YYYY-MM). Optional dept_id. Employees only get their own."""
+    return run_tool(lambda: tool_payroll_summary(ctx.context, month, dept_id))
 
 
 @function_tool

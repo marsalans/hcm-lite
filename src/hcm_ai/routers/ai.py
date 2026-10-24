@@ -3,10 +3,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import date, datetime
-from functools import lru_cache
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from agents import Model
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -24,6 +21,7 @@ from hcm_ai.agent.orchestrator import (
 from hcm_ai.agent.prompts import SUMMARY_INSTRUCTIONS, smart_leave_instructions
 from hcm_ai.config import Settings, get_settings
 from hcm_ai.ratelimit import ai_user
+from hcm_ai.routers.deps import Services, Today, get_services, get_today  # noqa: F401
 from hcm_ai.schemas import (
     ChatRequest,
     ChatResponse,
@@ -35,8 +33,7 @@ from hcm_ai.schemas import (
     SummarizeResponse,
     UserContext,
 )
-from hcm_ai.services.interfaces import AgentDeps, HRServices
-from hcm_ai.services.mock_impl import build_mock_services
+from hcm_ai.services.interfaces import AgentDeps
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -53,26 +50,10 @@ _MIN_BULLETS, _MAX_BULLETS = 3, 5
 _MIN_BUDGET_SECONDS = 0.5
 
 
-@lru_cache
-def _mock_services(today: date) -> HRServices:
-    return build_mock_services(today)
-
-
-def get_today(settings: Annotated[Settings, Depends(get_settings)]) -> date:
-    return datetime.now(ZoneInfo(settings.app_timezone)).date()
-
-
-def get_services(today: Annotated[date, Depends(get_today)]) -> HRServices:
-    """Swap for the real M3-M6 service bundle when those modules exist."""
-    return _mock_services(today)
-
-
 def get_model_provider(settings: Annotated[Settings, Depends(get_settings)]) -> ModelProvider:
     return lambda fast: build_models(settings, fast=fast)
 
 
-Services = Annotated[HRServices, Depends(get_services)]
-Today = Annotated[date, Depends(get_today)]
 Provider = Annotated[ModelProvider, Depends(get_model_provider)]
 Config = Annotated[Settings, Depends(get_settings)]
 

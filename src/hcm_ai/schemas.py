@@ -34,20 +34,20 @@ AI_LABEL = "AI-generated"
 LeaveType = Literal["annual", "sick", "casual", "unpaid"]
 
 _KPI_MAX_BYTES = 8192
-_KPI_MAX_DEPTH = 3
+_KPI_MAX_DEPTH = 4
 _KPI_MAX_STR = 100
 _KPI_MAX_ITEMS = 200
 
 
-class _Request(BaseModel):
+class RequestModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class ChatRequest(_Request):
+class ChatRequest(RequestModel):
     message: str = Field(min_length=1, max_length=1000)
 
 
-class SmartLeaveRequest(_Request):
+class SmartLeaveRequest(RequestModel):
     text: str = Field(min_length=1, max_length=500)
 
 
@@ -73,7 +73,7 @@ def _check_kpi(value: Any, depth: int = 1) -> None:
         raise ValueError("unsupported kpi value")
 
 
-class SummarizeRequest(_Request):
+class SummarizeRequest(RequestModel):
     kpis: dict[str, Any] = Field(min_length=1)
 
     @field_validator("kpis")
