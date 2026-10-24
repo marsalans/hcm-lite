@@ -1,0 +1,22 @@
+# AI Assistant (M8) - System Constitution
+
+## 1. Core Directives
+*   **Security First:** `GROQ_API_KEY`, `GEMINI_API_KEY` (optional fallback), `JWT_SECRET`, `OPENAI_TRACING_KEY` (optional) live exclusively in `.env` (git-ignored; only `.env.example` is committed). Load via `pydantic-settings`; wrap secrets in `SecretStr`; never log or echo them. The frontend NEVER talks to an AI provider.
+*   **Zero Direct DB Access:** The LLM never runs SQL. It interacts with data only through strictly typed Python function tools that call the existing service layer (`services/`).
+*   **Strict RBAC Validation:** `UserContext` (`user_id`, `role`, `employee_id`) comes ONLY from the verified JWT and is passed to tools through the Agents SDK run context (`RunContextWrapper[UserContext]`), never as an LLM-visible tool argument. Scope is enforced inside the service function and raises `403` before the LLM sees any data. Employee asking for another person's salary => refusal. `get_my_leave_balance` takes no identity args.
+*   **Read-Only:** The AI never writes business data. Only `ai_logs` is written. Smart-leave returns a pre-fill payload; the user confirms in the UI.
+*   **Resilience:** Every AI request has a hard 15s deadline (`asyncio.timeout`) and returns a friendly fallback message on timeout/provider error. Max 5 agent turns (`max_turns`) to bound tool loops.
+*   **Rate Limiting:** 20 AI requests per user per hour (all `/ai/*` routes share the bucket). Return `429` with `Retry-After`.
+*   **Traceability:** Every call is logged to `ai_logs`: `user_id`, `role`, `endpoint`, `prompt` (redacted, truncated), `response`, `tools_used`, `tokens_in/out`, `response_time_ms`, `status`, `timestamp`.
+*   **Transparency:** Every AI response carries `"ai_generated": true` plus a label string the UI must render.
+*   **Untrusted Input:** User text and tool results are data, not instructions. System prompt states this. Tool outputs are size-capped. Inputs are length-limited (e.g. 1000 chars chat, 500 chars smart-leave, dashboard JSON <= 8KB).
+
+## 2. Tech Stack & Best Practices
+*   **Package Manager:** `uv` only (`uv init`, `uv add`, `uv add --dev`, `uv run`, commit `uv.lock`). No `pip install`.
+*   **Python:** 3.12+, fully typed, `ruff` (lint+format) and `mypy`/`pyright` clean; `pytest` + `pytest-asyncio` tests.
+*   **Framework:** FastAPI, OAuth2 Bearer JWT (`pyjwt`, pinned algorithm HS256, require `exp`), Pydantic V2 (`extra="forbid"` on request models).
+*   **AI Orchestration:** **OpenAI Agents SDK** (`openai-agents`) with `@function_tool` tools and `Runner.run`. Provider: Groq through `AsyncOpenAI(base_url="https://api.groq.com/openai/v1")` wrapped in `OpenAIChatCompletionsModel` (Groq has no Responses API; call `set_default_openai_api("chat_completions")`). Optional fallback model: Gemini via its OpenAI-compatible endpoint.
+*   **Tracing:** Agents SDK tracing is ON. Groq key must NOT be used for trace export. Export to the OpenAI traces dashboard only if `OPENAI_TRACING_KEY` is set (`set_tracing_export_api_key`); otherwise export is switched off. `ai_logs` tool names and token counts come from a `RunHooks` collector plus run usage (works on timeouts), not from tracing. Set `trace_include_sensitive_data=False`; use `workflow_name="hcm-ai"`, `group_id=session id`, metadata with `user_id`/`role` only.
+*   **Token Optimization:** Small static system prompt (<~250 tokens) that is identical across requests (maximizes provider prefix caching); only the Section 3 policy rules injected; terse tool descriptions; tools return compact JSON (no prose, capped rows); `max_tokens` per endpoint; `temperature=0` for tools/structured output; cheap model (`openai/gpt-oss-20b`) for summarize; stronger model (`openai/gpt-oss-120b`) for tool chat and smart-leave (Groq retired the Llama 3.x ids; check `models.list()` if calls 404) (date accuracy is judge-tested); chat history capped to last N turns.
+*   **Structured Output:** Pydantic schema validation of model output (`json_object` mode + `model_validate_json`), since not every Groq model supports strict `json_schema`.
+*   **Errors:** Never leak stack traces, provider errors or key material to clients; log server-side with request id.
