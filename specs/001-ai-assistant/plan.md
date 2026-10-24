@@ -50,3 +50,8 @@ Layout (`src/hcm_ai/`): `config.py`, `main.py`, `dependencies.py`, `db.py`, `mod
 5.  UI in `src/hcm_ai/web/` (vanilla ES modules, no build): shell + sign-in, dashboard + charts + Summarize, employee home + smart-leave form, chat panel.
 6.  Tests: pytest (metrics, dashboard == tools, role scoping, demo auth, headers, UI source lint) and `node --test` for the DOM-safe renderer.
 7.  Browser verification with real Groq at desktop and 375px, light/dark; README (done / not done), integration doc, CLAUDE.md.
+
+## Phase 9: Complete Policy Q&A
+1.  `agent/policy.py` holds `POLICY_TEXT` = brief Section 3 (+ Section 2 permissions, Section 7 metric definitions), compressed; `prompts.py` builds the static system prompt from it.
+2.  Offline tests: token budget, required facts, agreement with code constants (quotas, gross factor), static prefix.
+3.  `scripts/policy_eval.py`: live question set (each rule, public-holiday case, out-of-scope => "I don't know"); non-zero exit on failure.

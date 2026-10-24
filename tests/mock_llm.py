@@ -45,10 +45,10 @@ def completion(
 
 
 class MockLLM:
-    """Pops one scripted reply per request. A reply is a dict (200), an int (HTTP status) or
-    a float (sleep that many seconds, then 200 with a plain answer)."""
+    """Pops one scripted reply per request. A reply is a dict (200), an int (HTTP status), a
+    (status, headers) tuple, or a float (sleep that many seconds, then 200 with a plain answer)."""
 
-    def __init__(self, *replies: dict[str, Any] | int | float) -> None:
+    def __init__(self, *replies: dict[str, Any] | int | float | tuple[int, dict[str, str]]) -> None:
         self._replies = list(replies)
         self.requests: list[dict[str, Any]] = []
 
@@ -57,6 +57,9 @@ class MockLLM:
         reply = self._replies.pop(0)
         if isinstance(reply, bool):
             raise TypeError
+        if isinstance(reply, tuple):
+            status, headers = reply
+            return httpx.Response(status, headers=headers, json={"error": {"message": "boom"}})
         if isinstance(reply, int):
             return httpx.Response(reply, json={"error": {"message": "boom"}})
         if isinstance(reply, float):

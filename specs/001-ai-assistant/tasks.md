@@ -50,3 +50,11 @@ Workflow: Claude Plan Mode per phase -> implement -> present -> wait for approva
 - [x] **T31:** Tests: pytest + `node --test`; UI source lint.
 - [x] **T32:** Browser verification (desktop, 375px, dark) with real Groq.
 - [x] **T33:** Final checks, README done/not-done, commits.
+
+## Phase 9: Complete Policy Q&A
+- [x] **T34:** Docs: spec D, plan, constitution token budget, README.
+- [x] **T35:** `agent/policy.py` (full Section 3 + permissions + metrics) wired into the system prompt.
+- [x] **T36:** Offline tests: budget, required facts, code/doc agreement, static prefix.
+- [x] **T37:** `scripts/policy_eval.py` live eval; iterate wording until all PASS.
+- [x] **T38:** Full checks (ruff, mypy, pytest, node, smoke) and local commit.
+- [x] **T39:** Wait out short provider 429s once within the deadline (found by the live eval; Groq free tier = 8,000 tokens/min).

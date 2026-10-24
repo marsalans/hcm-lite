@@ -138,10 +138,52 @@ def test_chat_prompt_has_refusal_rule_and_stays_within_token_budget() -> None:
     from hcm_ai.agent.prompts import CHAT_INSTRUCTIONS
 
     assert "can't share it" in CHAT_INSTRUCTIONS
-    assert len(CHAT_INSTRUCTIONS) / 4 < 300  # ~tokens; constitution target is ~250
+    assert len(CHAT_INSTRUCTIONS) / 4 < 850  # ~tokens; see constitution
 
 
 def test_summary_prompt_forbids_assuming_a_currency() -> None:
     from hcm_ai.agent.prompts import SUMMARY_INSTRUCTIONS
 
     assert "never assume another" in SUMMARY_INSTRUCTIONS
+
+
+async def test_short_provider_rate_limit_is_waited_out_then_succeeds() -> None:
+    llm = MockLLM((429, {"retry-after": "0.2"}), completion("answer after the wait"))
+    s = settings()
+    out = await execute_agent_chat(
+        deps(HR), "hi", settings=s, models=build_models(s, groq_client=llm.client())
+    )
+    assert out.status == "ok" and out.text == "answer after the wait"
+    assert len(llm.requests) == 2  # one retry, same model
+    assert 150 < out.elapsed_ms < 3000
+
+
+async def test_long_provider_rate_limit_is_not_waited_out() -> None:
+    llm = MockLLM((429, {"retry-after": "30"}))
+    s = settings()
+    out = await execute_agent_chat(
+        deps(HR), "hi", settings=s, models=build_models(s, groq_client=llm.client())
+    )
+    assert out.status == "error" and out.text == FALLBACK_MESSAGE
+    assert len(llm.requests) == 1 and out.elapsed_ms < 2000  # no sleeping through a long limit
+
+
+async def test_rate_limit_retries_only_once() -> None:
+    llm = MockLLM((429, {"retry-after": "0.1"}), (429, {"retry-after": "0.1"}))
+    s = settings()
+    out = await execute_agent_chat(
+        deps(HR), "hi", settings=s, models=build_models(s, groq_client=llm.client())
+    )
+    assert out.status == "error" and len(llm.requests) == 2
+
+
+async def test_rate_limit_without_retry_after_falls_back_to_next_model() -> None:
+    groq, gemini = MockLLM(429), MockLLM(completion("from gemini"))
+    s = settings(gemini_api_key="g")
+    out = await execute_agent_chat(
+        deps(HR),
+        "hi",
+        settings=s,
+        models=build_models(s, groq_client=groq.client(), gemini_client=gemini.client()),
+    )
+    assert out.status == "ok" and out.text == "from gemini" and len(groq.requests) == 1

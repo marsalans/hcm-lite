@@ -105,6 +105,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
 uv run pytest --cov=hcm_ai     # offline: scripted fake LLM; also runs the Node UI tests
 node --test "web_tests/*.test.mjs"
 uv run python scripts/smoke_api.py   # live check against real Groq (needs .env)
+uv run python scripts/policy_eval.py # 19 live Policy Q&A questions (~4 min, paced for token limits)
 ```
 
 Spec-driven workflow (SpecKit Plus): `specs/001-ai-assistant/` (`spec.md`, `plan.md`, `tasks.md`),
@@ -120,7 +121,7 @@ environment settings, never in the repo. The SQLite `ai_logs` file is ephemeral 
 ## Done / not done
 
 **Done (M8):** chat with 7 tools and role scoping; dashboard summary; smart leave with validation,
-one retry and fallback; policy Q&A; 15 s timeout + fallback; 20/hour rate limit; `ai_logs`;
+one retry and fallback; policy Q&A over the full Section 3 rules (`agent/policy.py`, checked by `scripts/policy_eval.py`); 15 s timeout + fallback; 20/hour rate limit; `ai_logs`;
 AI-generated labels; responsive UI (375 px+, light/dark, loading/empty/error/429 states);
 Admin/HR dashboard and Employee home fed by the same services as the AI; tracing.
 
@@ -131,6 +132,7 @@ All data shown is built-in sample data.
 
 ## Known limits
 
+- **Provider token limit:** Groq's free tier allows 8,000 tokens/minute for `gpt-oss-120b`; one chat request costs about 1,300 (policy + tool definitions), so roughly 6 questions a minute. On a short 429 the app waits (inside the 15 s budget) and retries once; beyond that users get the friendly fallback. A paid tier or a second provider key (`GEMINI_API_KEY`, which needs its own quota) removes this.
 - Summary numbers are grounded by prompt only; there is no numeric cross-check of the bullets.
 - Rate limiting is in memory (single process); use Redis for multiple workers.
 - Body-size cap checks the declared `Content-Length`; also cap at your reverse proxy.

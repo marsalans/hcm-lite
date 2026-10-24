@@ -15,7 +15,7 @@ from agents import (
     Tool,
 )
 from agents import Model as AgentModel
-from openai import APIError
+from openai import APIError, RateLimitError
 from openai.types.shared import Reasoning
 
 from hcm_ai.agent.client import build_models
@@ -29,6 +29,17 @@ log = logging.getLogger(__name__)
 FALLBACK_MESSAGE = "Sorry, the AI assistant couldn't answer in time. Please try again in a moment."
 
 AgentFactory = Callable[[AgentModel], Agent[AgentDeps]]
+
+# Free provider tiers cap tokens per minute (e.g. 8,000 on Groq's gpt-oss-120b). On a short
+# Retry-After we wait once, inside the request deadline, instead of failing the user's question.
+_MAX_RATE_LIMIT_WAIT = 6.0
+
+
+def _retry_after_seconds(exc: RateLimitError) -> float | None:
+    try:
+        return float(exc.response.headers.get("retry-after", ""))
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -105,17 +116,31 @@ async def run_agent(
     try:
         async with asyncio.timeout(timeout_seconds or settings.ai_timeout_seconds):
             for index, model in enumerate(models):
-                try:
-                    result = await Runner.run(
-                        make_agent(model),
-                        user_input,
-                        context=deps,
-                        max_turns=settings.agent_max_turns,
-                        hooks=collector,
-                        run_config=run_config,
-                    )
-                except APIError as exc:
-                    log.warning("model %d failed: %s", index, type(exc).__name__)
+                result = None
+                for attempt in range(2):
+                    try:
+                        result = await Runner.run(
+                            make_agent(model),
+                            user_input,
+                            context=deps,
+                            max_turns=settings.agent_max_turns,
+                            hooks=collector,
+                            run_config=run_config,
+                        )
+                        break
+                    except RateLimitError as exc:
+                        # Provider per-minute token limit: a short wait usually clears it.
+                        wait = _retry_after_seconds(exc)
+                        if attempt == 0 and wait is not None and wait <= _MAX_RATE_LIMIT_WAIT:
+                            log.warning("model %d rate limited; retrying in %.1fs", index, wait)
+                            await asyncio.sleep(wait + 0.25)
+                            continue
+                        log.warning("model %d failed: RateLimitError", index)
+                        break
+                    except APIError as exc:
+                        log.warning("model %d failed: %s", index, type(exc).__name__)
+                        break
+                if result is None:
                     continue
                 answer = str(result.final_output or "").strip()
                 if answer:
