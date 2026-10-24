@@ -5,7 +5,7 @@ Layout (`src/hcm_ai/`): `config.py`, `main.py`, `dependencies.py`, `db.py`, `mod
 ## Phase 1: Environment & Scaffold (uv + SpecKit Plus)
 1.  `uv init --package hcm-ai`, Python 3.12, `uv add fastapi "uvicorn[standard]" sqlalchemy pydantic pydantic-settings pyjwt openai-agents python-dotenv`; `uv add --dev pytest pytest-asyncio httpx ruff mypy`. Commit `uv.lock`.
 2.  `.gitignore` (`.env`, `*.db`, `.venv`), `.env.example` (placeholders only), `config.py` using `pydantic-settings` + `SecretStr`.
-3.  SpecKit Plus: keep `.specify/memory/constitution.md`, `spec.md`, `plan.md`, `tasks.md` as the working set; tick tasks as completed.
+3.  SpecKit Plus: keep `.specify/memory/constitution.md` and `specs/001-ai-assistant/{spec,plan,tasks}.md` as the working set; tick tasks as completed.
 4.  SQLite (`sqlalchemy` 2.0 style) and `AILog` model.
 
 ## Phase 2: Security & Context

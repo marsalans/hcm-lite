@@ -35,6 +35,8 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# SpecKit Plus scaffolding and docs contain sample code blocks; not our source.
+extend-exclude = [".claude", ".specify", "specs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S"]
