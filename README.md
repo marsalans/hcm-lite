@@ -86,6 +86,13 @@ tools used, tokens, latency, status) is always written.
 | Prompt/response redaction + truncation in `ai_logs` | `agent/ai_logger.py` |
 | CORS closed unless `CORS_ORIGINS` set; API docs off unless `ENABLE_DOCS=true` | `main.py` |
 
+## Spec-driven workflow (SpecKit Plus)
+
+Planning documents live in `specs/001-ai-assistant/` (`spec.md`, `plan.md`, `tasks.md`); the
+project rules are in `.specify/memory/constitution.md`. Slash commands (`/sp.plan`, `/sp.tasks`,
+`/sp.implement`, `/sp.analyze`, ...) are in `.claude/commands/`. On Windows run `specifyplus` with
+`PYTHONUTF8=1`. Integration contract for the other modules: `docs/integration.md`.
+
 ## Development
 
 ```bash

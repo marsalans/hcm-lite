@@ -132,3 +132,10 @@ async def test_tool_loop_is_bounded_by_max_turns() -> None:
 async def test_no_gemini_model_without_key() -> None:
     assert len(build_models(settings())) == 1
     assert len(build_models(settings(gemini_api_key="g"))) == 2
+
+
+def test_chat_prompt_has_refusal_rule_and_stays_within_token_budget() -> None:
+    from hcm_ai.agent.prompts import CHAT_INSTRUCTIONS
+
+    assert "can't share it" in CHAT_INSTRUCTIONS
+    assert len(CHAT_INSTRUCTIONS) / 4 < 300  # ~tokens; constitution target is ~250

@@ -19,9 +19,9 @@ Layout (`src/hcm_ai/`): `config.py`, `main.py`, `dependencies.py`, `db.py`, `mod
 3.  `ai_tools.py`: 7 `@function_tool` functions taking `RunContextWrapper[UserContext]`; Pydantic-validated args (month regex, `max_length`); compact JSON output, capped rows.
 
 ## Phase 4: Agent Orchestration (Agents SDK + Groq)
-1.  `agent/client.py`: `AsyncOpenAI(base_url=GROQ, api_key=..., timeout=12, max_retries=1)`; `OpenAIChatCompletionsModel`; `set_default_openai_api("chat_completions")`; `set_default_openai_client(client, use_for_tracing=False)`.
-2.  `agent/tracing.py`: enable tracing; if `OPENAI_TRACING_KEY` set -> `set_tracing_export_api_key`; always add local `TracingProcessor` collecting tools used / tokens for `ai_logs`; sensitive data off.
-3.  `orchestrator.py`: `Agent[UserContext]` with static policy prompt and the 7 tools; `Runner.run(agent, input, context=ctx, max_turns=5, run_config=RunConfig(workflow_name="hcm-ai", trace_include_sensitive_data=False, trace_metadata=...))` under `asyncio.timeout(15)`; optional Gemini fallback model on provider error; friendly fallback on timeout.
+1.  `agent/client.py`: `AsyncOpenAI(base_url=GROQ, api_key=..., timeout=AI_TIMEOUT_SECONDS, max_retries=0)` wrapped in `OpenAIChatCompletionsModel`, passed per Agent (no global SDK defaults); optional Gemini model second.
+2.  `agent/tracing.py`: if `OPENAI_TRACING_KEY` is set -> `set_tracing_export_api_key`, otherwise export is switched off; tools used / tokens for `ai_logs` come from a `RunHooks` collector, not tracing; sensitive data off.
+3.  `orchestrator.py`: `Agent[AgentDeps]` with static policy prompt and the 7 tools; `Runner.run(agent, input, context=deps, max_turns=5, run_config=RunConfig(workflow_name="hcm-ai/<endpoint>", trace_include_sensitive_data=False, trace_metadata=...))` under `asyncio.timeout(15)`; optional Gemini fallback model on provider error; friendly fallback on timeout.
 4.  `log_ai_call` helper writes `ai_logs` in a `finally` (redact emails/long digit strings from prompt, truncate).
 
 ## Phase 5: API Routes

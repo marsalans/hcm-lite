@@ -13,10 +13,10 @@ Workflow: Claude Plan Mode per phase -> implement -> present -> wait for approva
 
 ## Phase 3: Tools
 - [x] **T6:** Service `Protocol`s + in-memory mock implementation with real RBAC.
-- [x] **T7:** 7 `@function_tool` functions in `services/ai_tools.py` using run-context `UserContext`.
+- [x] **T7:** 7 `@function_tool` functions in `services/ai_tools.py` using run-context `AgentDeps` (user + services).
 
 ## Phase 4: Agent
-- [x] **T8:** Groq client + `OpenAIChatCompletionsModel` + Agents SDK config; tracing setup (OpenAI export if key, local processor always).
+- [x] **T8:** Groq client + `OpenAIChatCompletionsModel` + Agents SDK config; tracing setup (OpenAI export only if `OPENAI_TRACING_KEY`; otherwise off; `ai_logs` data from run hooks).
 - [x] **T9:** Orchestrator: Agent, static policy prompt, `Runner.run` with `max_turns`, 15s `asyncio.timeout`, friendly fallback, `ai_logs` writer.
 
 ## Phase 5: Routes
@@ -27,3 +27,10 @@ Workflow: Claude Plan Mode per phase -> implement -> present -> wait for approva
 ## Phase 6: Hardening
 - [x] **T13:** Tests: RBAC matrix, rate limit, timeout, retry/fallback, injection, JWT edge cases.
 - [x] **T14:** ruff + mypy clean; secrets scan; run the 4 judge scenarios live; README run instructions (`uv run uvicorn ...`).
+
+## Phase 7: Integration readiness & polish
+- [x] **T15:** Docs sync (constitution, plan, tasks, README) with what was built; adopt SpecKit Plus layout.
+- [x] **T16:** Refusal wording for other people's pay / private data (prompt rule + test + live check).
+- [x] **T17:** `docs/integration.md` contract + reusable service contract tests for the real M3-M6 services.
+- [x] **T18:** Dependency audit (`pip-audit`): no known vulnerabilities; no upgrades needed.
+- [x] **T19:** Full verification (ruff, mypy, pytest, coverage, SpecKit prerequisites check, live smoke) and commit.
